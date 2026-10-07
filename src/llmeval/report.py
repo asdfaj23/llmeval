@@ -331,8 +331,9 @@ def _bias_block(bias: dict[str, Any]) -> str:
     warn_html = (
         "".join(f"<li>{_esc(w)}</li>" for w in warns) if warns else "<li class='muted'>未发现同族风险</li>"
     )
+    applied_controls_muted = '<span class="muted">未启用</span>'
     applied = "".join(
-        f"<li>{_esc(k)}：{'已启用' if v else '<span class=\"muted\">未启用</span>'}</li>"
+        f"<li>{_esc(k)}：{'已启用' if v else applied_controls_muted}</li>"
         for k, v in controls.items()
     )
 
