@@ -1,0 +1,17 @@
+{
+  "n_filled": 25,
+  "n_blank": 5,
+  "blank_items": [
+    "5.ag-012",
+    "8.co-016",
+    "23.of-004",
+    "29.sa-012",
+    "30.sa-017"
+  ],
+  "exact_agree": 0.56,
+  "within1_agree": 0.92,
+  "kappa_unweighted": 0.316,
+  "kappa_linear": 0.629,
+  "kappa_quadratic": 0.805,
+  "threshold_0_6_pass": false
+}

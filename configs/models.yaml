@@ -1,0 +1,211 @@
+# ==============================================================
+# 模型注册表
+# --------------------------------------------------------------
+# 一个条目 = 一个可调用的模型端点，用途分两类：
+#   suts   被测系统（System Under Test），被评测的对象
+#   judges 裁判模型，负责打分/对比
+#
+# 设计原则：
+#   1. 凭据不写在这里，只写环境变量名，真实 key 放 .env
+#   2. 留空 model 表示"尚未填写"，配合 enabled: false 自动跳过
+#   3. provider 统一是 OpenAI 兼容协议，换服务商只改 base_url
+# ==============================================================
+
+providers:
+  ark:
+    label: 火山方舟（字节跳动）
+    base_url: https://ark.cn-beijing.volces.com/api/v3
+    api_key_env: ARK_API_KEY
+  deepseek:
+    label: DeepSeek
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+  moonshot:
+    label: Moonshot Kimi
+    base_url: https://api.moonshot.cn/v1
+    api_key_env: MOONSHOT_API_KEY
+  dashscope:
+    label: 阿里通义千问
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key_env: DASHSCOPE_API_KEY
+  zhipu:
+    label: 智谱 GLM
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    api_key_env: ZHIPU_API_KEY
+  openai:
+    label: OpenAI
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+  mock:
+    label: 离线 Mock（零依赖，用于流水线自测）
+    base_url: ""
+    api_key_env: ""
+
+# ------------------------------ 被测系统 ------------------------------
+suts:
+  - id: doubao-seed
+    label: 豆包 Seed
+    provider: ark
+    model: ""                 # ← 填方舟接入点 ID 或模型名即可启用
+    temperature: 0.0
+    max_tokens: 2048
+    enabled: false
+
+  - id: deepseek-chat
+    label: DeepSeek-V3
+    provider: deepseek
+    model: deepseek-chat
+    temperature: 0.0
+    max_tokens: 2048
+    enabled: false
+
+  - id: kimi-k2
+    label: Kimi K2
+    provider: moonshot
+    model: kimi-k2-turbo-preview
+    temperature: 0.0
+    max_tokens: 2048
+    enabled: false
+
+  - id: qwen-plus
+    label: 通义千问 Plus
+    provider: dashscope
+    model: qwen-plus
+    temperature: 0.0
+    max_tokens: 2048
+    enabled: false
+
+  # ---------------- 已接入的真实模型 ----------------
+  - id: glm-5.3-flash
+    label: GLM 5.3 Flash
+    provider: zhipu
+    model: glm-5.3-flash
+    temperature: 0.0
+    # 8192 而不是 2048：推理模型的思考过程会占用 token 预算，
+    # 给少了会出现「思考完了、正式回答被截断成空」的情况（实测 9% 的题命中）。
+    max_tokens: 8192
+    # 官方定价（智谱开放平台 open.bigmodel.cn/pricing，2026-09-14 核对）：
+    #   输入 0.8 元/M · 输出 2.8 元/M · 缓存命中 0.23 元/M
+    # 报告按美元计价，此处按 1 USD ≈ 7.1 CNY 折算；汇率变了自己改这两行。
+    price_in: 0.113
+    price_out: 0.394
+    enabled: true
+
+  - id: deepseek-flash
+    label: DeepSeek V4.1 Flash
+    provider: deepseek
+    model: deepseek-flash
+    temperature: 0.0
+    max_tokens: 8192
+    # 官方定价（api-docs.deepseek.com/quick_start/pricing，2026-09-14 核对），美元/M：
+    #   输入（缓存未命中）  闲时 0.15 · 高峰 0.30
+    #   输出                闲时 0.60 · 高峰 1.20
+    # 高峰 = 工作日 01:00-04:00 与 06:00-10:00 UTC，其余为闲时。此处按闲时计。
+    price_in: 0.15
+    price_out: 0.6
+    enabled: true
+
+  # ---------------- 离线演示用 ----------------
+  # 不需要任何凭据，可完整跑通流水线。
+  # 只做真实模型评测时把 enabled 改成 false，避免报告里混入模拟数据。
+  - id: mock-strong
+    label: Mock 强模型（演示）
+    provider: mock
+    model: mock-strong
+    temperature: 0.0
+    max_tokens: 2048
+    strategy: plan_execute
+    enabled: false          # 演示用，跑 ReAct vs Plan-and-Execute 对比时需临时启用（见 scripts/run_compare_demo.py）
+
+  - id: mock-strong-react
+    label: Mock 强模型 · ReAct（演示）
+    provider: mock
+    model: mock-strong
+    temperature: 0.0
+    max_tokens: 2048
+    strategy: react
+    enabled: false          # 演示用，跑 ReAct vs Plan-and-Execute 对比时需临时启用（见 scripts/run_compare_demo.py）
+
+  - id: mock-weak
+    label: Mock 弱模型（演示）
+    provider: mock
+    model: mock-weak
+    temperature: 0.0
+    max_tokens: 2048
+    enabled: false
+
+# ------------------------------ 裁判模型 ------------------------------
+# 注意：正式评测时裁判应尽量与 SUT 跨模型族，规避 self-preference 偏差
+judges:
+  # ---------------- 真实评审团 ----------------
+  # 用两个不同家族的模型互评，聚合时取中位数。
+  # 这么做是有原因的：被测是 GLM 时，让 DeepSeek 来评更公平；反之亦然。
+  # 两个都当裁判，各自的家族偏好会在中位数上被部分抵消。
+  #
+  # 报告里仍然会给出「同族告警」（裁判 GLM 与被测 GLM 同族），这是刻意保留的 ——
+  # 偏差要披露，不能因为抵消了一部分就当它不存在。
+  - id: judge-glm-flash
+    label: GLM 5.3 Flash（裁判）
+    provider: zhipu
+    model: glm-5.3-flash
+    temperature: 0.0
+    max_tokens: 8192
+    price_in: 0.113               # 与 suts 里的 GLM 5.3 Flash 同一口径
+    price_out: 0.394
+    enabled: true
+
+  - id: judge-deepseek-flash
+    label: DeepSeek V4.1 Flash（裁判）
+    provider: deepseek
+    model: deepseek-flash
+    temperature: 0.0
+    max_tokens: 8192
+    price_in: 0.15               # 同 suts 里的 DeepSeek V4.1 Flash 口径（闲时）
+    price_out: 0.6
+    enabled: true
+
+  # ---------------- 离线演示用 ----------------
+  - id: mock-judge
+    label: Mock 裁判 A（演示）
+    provider: mock
+    model: mock-judge
+    temperature: 0.0
+    enabled: false
+
+  - id: mock-judge-b
+    label: Mock 裁判 B（更严格，用于演示评审团）
+    provider: mock
+    model: mock-judge-b
+    temperature: 0.0
+    enabled: false
+
+  - id: judge-qwen-max
+    label: 通义千问 Max（裁判）
+    provider: dashscope
+    model: ""                 # ← 填裁判模型名即可启用
+    temperature: 0.0
+    enabled: false
+
+  # ---------------- 跨族第三方裁判 ----------------
+  # 前两个裁判与被测模型同族（GLM 评 GLM、DeepSeek 评 DeepSeek），存在自偏好风险。
+  # 豆包 Seed 与两者都不同族，它的判断不受自偏好影响，所以除了当裁判，
+  # 它还有第二个用途：拿它的分数和同族裁判做差，就能把「自偏好到底有多大」
+  # 量化成一个数字，而不是只在报告里挂一句告警。
+  - id: judge-doubao-seed
+    label: 豆包 Seed 2.0 Lite（跨族裁判）
+    provider: ark
+    model: doubao-seed-2-0-lite-260428
+    temperature: 0.0
+    max_tokens: 8192
+    price_in: 0.0             # TODO 查证后补上；只影响成本统计，不影响判定
+    price_out: 0.0
+    enabled: true
+
+# ------------------------------ 运行时 ------------------------------
+runtime:
+  concurrency: 8          # 并发请求数；两家都宣称高并发，8 能把 42 分钟压到 20 出头
+  timeout_s: 60
+  max_retries: 3
+  retry_backoff_s: 2.0
+  cache: true             # 相同 (model, prompt, params) 复用响应，省钱省时
+  cache_dir: outputs/.cache

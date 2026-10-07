@@ -1,0 +1,34 @@
+# ==============================================================
+# 评测套件：多智能体协作
+# --------------------------------------------------------------
+# 这个套件跑的被测对象不是单个模型，而是 planner / executor / reviewer
+# 三个角色协作的系统（见 src/llmeval/sut/multi_agent_sut.py）。
+#
+# repeats: 3 是刻意开的。多智能体系统的稳定性普遍比单模型差
+# （多一层角色就多一层失败可能），所以必须看 pass^k 而不只是单次结果。
+# ==============================================================
+
+id: multi_agent
+name: 多智能体协作评测
+
+datasets:
+  - datasets/multiagent/collaboration.jsonl
+
+suts: []
+judges: []
+seed: 20260914
+
+metrics:
+  deterministic: true
+  llm_judge: true
+  judge_sample_ratio: 1.0
+  rubric: collaboration
+
+per_dimension:
+  multi_agent:
+    rubric: collaboration
+    repeats: 3
+    pass_k: 3
+
+limits:
+  max_samples_per_dataset: 0

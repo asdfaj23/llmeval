@@ -1,0 +1,78 @@
+# ==============================================================
+# 评分表（Rubric）：指令遵循 Instruction Following
+# --------------------------------------------------------------
+# 这个维度尽量交给「确定性规则」判定（Tier1），而不是交给 LLM 裁判。
+# 原因：格式约束、字数上限、必须/禁止出现的词，都是可程序化验证的。
+# 确定性判定免费、可复现、零偏差 —— 能用规则就别用裁判。
+#
+# LLM 裁判只负责规则覆盖不到的那部分：语义层面的"是否真的照做了"。
+# ==============================================================
+
+id: instruction_following
+name: 指令遵循
+version: "1.0"
+
+dimensions:
+  - instruction
+
+# ------------------------- 机器可判定的约束 -------------------------
+# 每条约束由 metrics/deterministic.py 实现，定义在数据集样本的 constraints 字段中
+# 这里登记框架支持的约束类型，便于报告归类
+deterministic_constraints:
+  - type: must_contain
+    desc: 回答必须包含指定字符串（不区分大小写）
+  - type: must_not_contain
+    desc: 回答中不得出现指定字符串
+  - type: max_chars
+    desc: 回答字符数不得超过上限
+  - type: min_chars
+    desc: 回答字符数不得低于下限
+  - type: exact_lines
+    desc: 回答必须恰好为指定行数
+  - type: json_schema
+    desc: 回答必须是合法 JSON 且满足给定 schema 子集
+  - type: regex_fullmatch
+    desc: 回答必须完全匹配给定正则
+  - type: language
+    desc: 回答主体语言必须为指定语言（中/英）
+  - type: no_preamble
+    desc: 不得出现"好的/当然/以下是"之类的开场白
+
+# ------------------------- 语义层面的判定 -------------------------
+scale:
+  type: ordinal
+  min: 1
+  max: 5
+  anchors:
+    5: 所有显式约束都满足，且没有以任何方式绕开约束的意图
+    4: 所有硬约束满足，但存在 1 处轻微的语气或格式偏离
+    3: 违反 1 条次要约束，硬约束仍满足
+    2: 违反 1 条硬约束
+    1: 违反 2 条及以上硬约束，或完全无视指令
+
+criterion: |
+  只评估"是否遵照了用户明确提出的要求"，不评估内容本身有多聪明。
+  用户说了什么就查什么；用户没说的一律不作为扣分理由。
+  若回答通过合规的形式表达了不合规的内容（例如要求输出 JSON 却塞进解释性文字），
+  视为违反约束。
+
+evaluation_steps:
+  - 列出用户提出的所有显式约束
+  - 对每条约束给出满足 / 违反的判定，并引用回答中的证据
+  - 区分硬约束（格式、字数、必含项）与软约束（语气、风格）
+  - 按 anchors 映射到分数
+
+output_schema:
+  constraints:
+    type: array
+    items:
+      constraint: string
+      satisfied: boolean
+      evidence: string
+  hard_violations: integer
+  score: integer
+  reasoning: string
+
+bias_controls:
+  - id: rubric_anchoring
+    note: 只针对用户显式提出过的要求判定，避免裁判自行加戏

@@ -1,0 +1,76 @@
+# ==============================================================
+# 评分表（Rubric）：回答质量（Helpfulness）
+# --------------------------------------------------------------
+# 开放式生成任务没有唯一正确答案，无法用精确匹配判定。
+# 这类任务用 G-Eval 式的多维打分：把"好不好"拆成 4 个可分离的子维度，
+# 每个子维度单独判定，最后加权成总分。
+#
+# 拆维度的意义在于「可审阅」：
+#   "3.2 分，因为正确性拿了 3 分而完整性只有 2 分"
+#   比 "3.2 分，因为感觉一般" 有用得多。
+# ==============================================================
+
+id: helpfulness
+name: 回答质量
+version: "1.0"
+
+dimensions:
+  - reasoning
+  - realworld
+  - coding
+
+scale:
+  type: ordinal
+  min: 1
+  max: 5
+  anchors:
+    5: 完全解决问题，无事实错误，无遗漏关键点，表达清晰
+    4: 基本解决问题，有 1 处非关键瑕疵
+    3: 方向正确但有明显缺漏，或存在 1 处关键错误
+    2: 方向部分正确，但错误较多，实际帮助有限
+    1: 答非所问，或核心结论错误
+
+criterion: |
+  综合评价回答对用户问题的实际帮助程度。
+  四个子维度分别打分，再按权重合成：
+    correctness  正确性    0.40
+    completeness 完整性    0.25
+    relevance    相关性    0.20
+    clarity      清晰度    0.15
+  权重可在 suite 配置中覆盖。
+
+evaluation_steps:
+  - 先复述用户的实际诉求（避免评错对象）
+  - 对 correctness / completeness / relevance / clarity 四个子维度分别给出 1-5 分与一句话依据
+  - 按权重计算加权分，四舍五入到 1 位小数
+  - 检查是否存在"回答了问题但不是用户问的那个问题"的情况
+
+sub_dimensions:
+  correctness:
+    weight: 0.40
+    desc: 结论与推导是否正确，有无事实性错误
+  completeness:
+    weight: 0.25
+    desc: 是否覆盖了问题的所有要点，有无遗漏
+  relevance:
+    weight: 0.20
+    desc: 是否在回答用户真正问的问题，有无跑题
+  clarity:
+    weight: 0.15
+    desc: 结构是否清楚，是否易于阅读
+
+output_schema:
+  restated_intent: string
+  sub_scores:
+    correctness: integer
+    completeness: integer
+    relevance: integer
+    clarity: integer
+  weighted_score: number
+  reasoning: string
+
+bias_controls:
+  - id: verbosity
+    note: 明确声明"篇幅长不等于完整"，完整性以要点覆盖计而非字数计
+  - id: position
+    note: 用于 pairwise 时强制双向换位

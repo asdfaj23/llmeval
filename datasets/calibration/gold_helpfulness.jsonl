@@ -1,0 +1,39 @@
+// ==============================================================
+// 人工标注样例文件
+// --------------------------------------------------------------
+// 用途：演示裁判校准（Coach's kappa）需要的标注格式。
+//
+// 格式：每行一个 JSON，字段为
+//     sample_id  评测集里的题目 id
+//     sut_id     被测模型 id（与 configs/models.yaml 里一致）
+//     score      人工给出的 1-5 分（必须与评分表的刻度一致）
+//     notes      人工判断的依据，可选但强烈建议写
+//
+// 注意：下面这些分数是**按题目难度与标答内容构造的示例**，
+// 不是真实的人工评测结果。实际使用时必须由人按评分表逐条看过回答再打分，
+// 否则算出来的 κ 是假的，比没有 κ 更危险 —— 它会给你一个可信的错觉。
+//
+// 用法：
+//     python run.py calibrate --run latest --gold datasets/calibration/gold_helpfulness.jsonl
+// ==============================================================
+{"sample_id": "kn-001", "sut_id": "mock-strong", "score": 5, "notes": "选项正确，作答干净"}
+{"sample_id": "kn-001", "sut_id": "mock-weak", "score": 1, "notes": "选项错误"}
+{"sample_id": "kn-002", "sut_id": "mock-strong", "score": 5, "notes": "429 限流语义正确"}
+{"sample_id": "kn-002", "sut_id": "mock-weak", "score": 2, "notes": "选择了错误选项"}
+{"sample_id": "kn-003", "sut_id": "mock-strong", "score": 5, "notes": "准确指出 Attention Is All You Need"}
+{"sample_id": "kn-004", "sut_id": "mock-strong", "score": 2, "notes": "把通过年份当成生效年份，是常见的混淆点"}
+{"sample_id": "kn-005", "sut_id": "mock-weak", "score": 1, "notes": "年份错误"}
+{"sample_id": "kn-006", "sut_id": "mock-strong", "score": 5, "notes": "CAP 表述准确，并补充了 PACELC 的延伸"}
+{"sample_id": "kn-006", "sut_id": "mock-weak", "score": 1, "notes": "答非所问"}
+{"sample_id": "kn-007", "sut_id": "mock-strong", "score": 4, "notes": "抓住了置换等变性这个关键点，但对后果的解释略简"}
+{"sample_id": "kn-008", "sut_id": "mock-strong", "score": 4, "notes": "两种预训练目标区分正确，能力差异只写了一半"}
+{"sample_id": "kn-009", "sut_id": "mock-weak", "score": 3, "notes": "定义对，但没指出误用，属于漏要点"}
+{"sample_id": "kn-010", "sut_id": "mock-weak", "score": 2, "notes": "没区分计算密集与 I/O 密集，笼统否定多线程"}
+{"sample_id": "in-001", "sut_id": "mock-strong", "score": 5, "notes": "长度合规且未出现禁用词"}
+{"sample_id": "in-001", "sut_id": "mock-weak", "score": 1, "notes": "出现禁用词，硬约束违规"}
+{"sample_id": "in-002", "sut_id": "mock-strong", "score": 5, "notes": "纯 JSON，无多余文字"}
+{"sample_id": "in-003", "sut_id": "mock-weak", "score": 2, "notes": "行数不等于 3"}
+{"sample_id": "in-007", "sut_id": "mock-strong", "score": 5, "notes": "只输出四位年份，完全匹配正则"}
+{"sample_id": "in-009", "sut_id": "mock-weak", "score": 1, "notes": "字数超限"}
+{"sample_id": "re-001", "sut_id": "mock-strong", "score": 5, "notes": "计算过程与结果都正确"}
+{"sample_id": "re-002", "sut_id": "mock-weak", "score": 2, "notes": "选错了盒子，理由链不成立"}

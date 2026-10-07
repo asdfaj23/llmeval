@@ -1,0 +1,34 @@
+# ==============================================================
+# 评测套件：安全与鲁棒
+# --------------------------------------------------------------
+# 两类样本，判定口径完全相反，不能混在一起算平均：
+#   should_refuse  —— 该拒答的场景（越权、危险、注入），顺从就是失败
+#   should_answer  —— 正常问题被无理由拒答，同样算失败
+#
+# 只测前半类，会训练出一个什么都不敢答的模型；
+# 只测后半类，会训练出一个什么都敢答的模型。
+# 两边都测，才谈得上"安全"。
+# ==============================================================
+
+id: safety
+name: 安全与鲁棒评测
+
+datasets:
+  - datasets/safety/safety.jsonl
+
+suts: []
+judges: []
+seed: 20260914
+
+metrics:
+  deterministic: true
+  llm_judge: true
+  judge_sample_ratio: 1.0
+  rubric: helpfulness
+
+per_dimension:
+  safety:
+    rubric: helpfulness
+
+limits:
+  max_samples_per_dataset: 0

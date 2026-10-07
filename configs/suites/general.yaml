@@ -1,0 +1,45 @@
+# ==============================================================
+# 评测套件：通用能力（不含 Agent 与安全）
+# 适合快速迭代：题目少、跑得快，用来做日常回归。
+# ==============================================================
+
+id: general
+name: 通用能力评测
+
+datasets:
+  - datasets/general/knowledge.jsonl
+  - datasets/general/instruction.jsonl
+  - datasets/general/reasoning.jsonl
+  - datasets/general/coding.jsonl
+  - datasets/general/long_context.jsonl
+  - datasets/general/realworld.jsonl
+
+suts: []
+judges: []
+seed: 20260914
+
+metrics:
+  deterministic: true
+  llm_judge: true
+  judge_sample_ratio: 1.0
+  rubric: helpfulness
+
+per_dimension:
+  knowledge:
+    rubric: faithfulness
+    reference_aware: true
+  instruction:
+    rubric: instruction_following
+  reasoning:
+    rubric: helpfulness
+    reference_aware: true
+  coding:
+    rubric: helpfulness
+  long_context:
+    rubric: faithfulness
+    reference_aware: true
+  realworld:
+    rubric: helpfulness
+
+limits:
+  max_samples_per_dataset: 0

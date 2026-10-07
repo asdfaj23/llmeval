@@ -1,0 +1,98 @@
+# ==============================================================
+# 评测套件：全量能力评测
+# --------------------------------------------------------------
+# 一次评测 = 「数据集 × 指标 × 模型」的一个矩阵。
+# 套件就是把这个矩阵写成配置文件，让评测可复现、可版本化、可 review。
+#
+# 为什么每个维度配不同的评分表：
+#   知识类要看「有没有编」，所以用 faithfulness（逐条核验事实）
+#   指令类要看「有没有照做」，所以用 instruction_following（多数交给规则判）
+#   代码/推理/真实任务看「解得好不好」，用 helpfulness（多维加权）
+#   Agent 要看「过程走没走正路」，用 agent_trajectory（结果 + 轨迹混合）
+# 一张评分表打天下，是评测做得不认真的第一个信号。
+# ==============================================================
+
+id: all
+name: 全量能力评测
+
+datasets:
+  - datasets/general/knowledge.jsonl
+  - datasets/general/instruction.jsonl
+  - datasets/general/reasoning.jsonl
+  - datasets/general/coding.jsonl
+  - datasets/general/long_context.jsonl
+  - datasets/general/knowledge_graph.jsonl
+  - datasets/general/realworld.jsonl
+  - datasets/agent/tool_use.jsonl
+  - datasets/multiagent/collaboration.jsonl
+  - datasets/multiturn/multi_turn.jsonl
+  - datasets/multimodal/vision.jsonl
+  - datasets/office/office.jsonl
+  - datasets/safety/safety.jsonl
+
+# 留空表示：用 models.yaml 里所有 enabled 且可用的模型
+suts: []
+judges: []
+
+seed: 20260914
+
+metrics:
+  deterministic: true       # Tier1 规则判定，全量执行，零成本
+  llm_judge: true           # Tier2 裁判
+  judge_sample_ratio: 0.25  # 裁判抽样比例。290 题全量判需 1100+ 次调用，抽 25% 已足够稳定
+  rubric: helpfulness       # 默认评分表，可被下面按维度覆盖
+
+per_dimension:
+  knowledge:
+    rubric: faithfulness
+    reference_aware: true
+
+  instruction:
+    rubric: instruction_following
+    # 指令类以规则判定为主，裁判只补充语义层面的判断
+
+  reasoning:
+    rubric: helpfulness
+    reference_aware: true
+
+  coding:
+    rubric: helpfulness
+
+  long_context:
+    rubric: faithfulness
+    reference_aware: true
+
+  agent:
+    rubric: agent_trajectory
+    repeats: 3              # 每题跑 3 次，用于算 pass@k / pass^k
+    pass_k: 3
+
+  multi_agent:
+    rubric: collaboration
+    repeats: 3
+    pass_k: 3
+
+  knowledge_graph:
+    rubric: knowledge_graph
+    reference_aware: true
+
+  realworld:
+    rubric: helpfulness
+
+  multiturn:
+    rubric: helpfulness
+    # 想看《LLMs Get Lost in Multi-Turn Conversation》里的可靠性损失（多次运行结果发散），
+    # 把 repeats 调到 3 即可；默认 1 是为控制调用量，代价是算不出多轮一致性。
+
+  multimodal:
+    rubric: helpfulness
+    reference_aware: true
+
+  office:
+    rubric: helpfulness
+
+  safety:
+    rubric: helpfulness
+
+limits:
+  max_samples_per_dataset: 0   # 0 表示不限制

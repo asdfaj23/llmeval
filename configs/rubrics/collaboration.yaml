@@ -1,0 +1,67 @@
+# ==============================================================
+# 评分表（Rubric）：多智能体协作质量
+# --------------------------------------------------------------
+# 这张评分表的核心主张：
+#     「流程跑通」和「协作有效」是两回事。
+#
+# 多智能体系统最容易骗过评测的地方就在这里 —— 三个角色都发言了、
+# 消息条数也不少、最后也给出了答案，看起来一切正常。
+# 但只要 reviewer 从不否决、或者否决了没人改，这套系统就只是个
+# 更贵、更慢的单人流水线。
+# ==============================================================
+
+id: collaboration
+name: 多智能体协作质量
+version: "1.0"
+
+dimensions:
+  - multi_agent
+
+scale:
+  type: ordinal
+  min: 1
+  max: 5
+  anchors:
+    5: 三角色各司其职，审查者发现并指出实质问题，执行者据此完成修订，最终产出正确
+    4: 角色齐备且协作成立，审查意见较泛，但修订确实发生
+    3: 角色齐备但审查流于形式，或修订并未针对审查意见
+    2: 缺少关键角色，或审查者提出否决后无人修订
+    1: 协作根本没有发生（单一角色包办），或审查者放行了明显错误
+
+criterion: |
+  评估多智能体系统是否真的形成了分工与制衡，
+  而不是把一件事拆成三段轮流说一遍。
+
+  必须核对三个点：
+    1. 角色是否齐备 —— planner / executor / reviewer 是否都真实参与
+    2. reviewer 是否行使过否决权 —— 从不说「不」的审查者等于不存在
+    3. 否决之后 executor 是否真的修订 —— 协作断链最常断在这一步
+
+  严禁因为流程完整、消息条数多就给高分。流程跑通不等于协作有效。
+
+evaluation_steps:
+  - 列出实际参与的角色，与题目要求的角色逐项比对
+  - 检查 reviewer 的每一条输出：是提出了具体问题，还是只写「没问题」
+  - 若 reviewer 提出否决，检查后续是否出现修订版本，且修订内容与意见对应
+  - 检查是否存在「某个角色包办了绝大多数消息」的情况
+  - 按 anchors 给出分数
+
+# 这三项由 metrics/collaboration.py 用确定性逻辑算出，不经过裁判
+deterministic_signals:
+  - collaboration_roles     角色覆盖 / 消息轮次 / 独角戏检测
+  - collaboration_review    是否提出实质问题、是否抓到题目埋设的缺陷
+  - collaboration_revision  否决之后是否产生了有效修订
+
+output_schema:
+  roles_verified: array
+  reviewer_exercised_authority: boolean
+  revision_followed: boolean
+  collaboration_effective: boolean
+  score: integer
+  reasoning: string
+
+bias_controls:
+  - id: process_over_substance
+    note: 标准里显式声明「流程完整不等于协作有效」，避免裁判被流程表象带偏
+  - id: gold_anchoring
+    note: 题目若标注了 expected_reviewer_flag，要求先核对该缺陷是否被抓出

@@ -1,0 +1,36 @@
+# ==============================================================
+# 评测套件：Agent 工具调用能力
+# --------------------------------------------------------------
+# 这个套件的特殊之处在 repeats: 3。
+# 每道题独立跑 3 次，目的是算出 pass^k（可靠性），而不只是 pass@k（能力上限）。
+#
+# 为什么非做不可：单次成功率会系统性高估 Agent 的可用性。
+# 一个 60% 单次成功的 Agent，如果三次全对的比例只有 20%，
+# 那它的实际工程价值远低于头条分数给人的印象。
+# 对要上线的系统，先解决"忽好忽坏"比再抬高平均分更重要。
+# ==============================================================
+
+id: agent
+name: Agent 工具调用评测
+
+datasets:
+  - datasets/agent/tool_use.jsonl
+
+suts: []
+judges: []
+seed: 20260914
+
+metrics:
+  deterministic: true
+  llm_judge: true
+  judge_sample_ratio: 1.0
+  rubric: agent_trajectory
+
+per_dimension:
+  agent:
+    rubric: agent_trajectory
+    repeats: 3
+    pass_k: 3
+
+limits:
+  max_samples_per_dataset: 0

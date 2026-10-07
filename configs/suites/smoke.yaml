@@ -1,0 +1,32 @@
+# ==============================================================
+# 冒烟套件：只跑新维度 + 代码执行，全部走 mock，不调用任何真实 API
+# 用途：改完判定逻辑后快速自检，跑完即可删除
+# ==============================================================
+
+id: smoke
+name: 冒烟自检（离线）
+
+datasets:
+  - datasets/general/coding.jsonl
+  - datasets/multiturn/multi_turn.jsonl
+  - datasets/multimodal/vision.jsonl
+  - datasets/office/office.jsonl
+
+suts:
+  - mock-strong
+judges: []
+
+seed: 20260914
+
+metrics:
+  deterministic: true
+  llm_judge: false          # 冒烟阶段不花裁判钱，只验证确定性判定链路
+
+per_dimension:
+  coding: {}
+  multiturn: {}
+  multimodal: {}
+  office: {}
+
+limits:
+  max_samples_per_dataset: 0

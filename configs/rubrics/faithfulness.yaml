@@ -1,0 +1,63 @@
+# ==============================================================
+# 评分表（Rubric）：事实忠实度 Faithfulness
+# --------------------------------------------------------------
+# 范式参考 G-Eval（Liu et al., 2023, arXiv:2303.16634）：
+#   显式 criterion + 有序的 evaluation_steps + 带锚点的分数刻度
+#   + 严格 JSON 输出契约
+#
+# 三条不可违背的设计原则：
+#   1. 先推理，后给分。禁止先给分数再补理由（那是表演，不是评测）
+#   2. 长度、语气、排版不构成加分理由，必须在标准里显式写死
+#   3. 分数刻度必须有文字锚点，裸 1-5 分在不同 prompt 之间不可比
+# ==============================================================
+
+id: faithfulness
+name: 事实忠实度
+version: "1.0"
+
+# 该 rubric 适用的能力维度，报告按维度聚合时使用
+dimensions:
+  - knowledge
+  - long_context
+  - realworld
+
+scale:
+  type: ordinal
+  min: 1
+  max: 5
+  anchors:
+    5: 全部事实性陈述均被给定材料或公认事实支持，无编造
+    4: 仅一处轻微过度概括，不影响结论成立
+    3: 存在 2-3 处无依据陈述，或 1 处与给定材料直接矛盾
+    2: 存在多处编造或矛盾，答案主体不可信
+    1: 大部分内容为编造，或与给定材料严重冲突
+
+criterion: |
+  逐条检验回答中的事实性陈述是否成立。
+  判定依据的优先级：给定材料 > 公认事实。
+  严禁因回答冗长、语气自信、排版精美而提高分数。
+
+evaluation_steps:
+  - 抽取回答中所有可独立判定的原子事实陈述
+  - 对每条陈述标注 SUPPORTED / CONTRADICTED / NOT_IN_REFERENCE
+  - 计算 unsupported = CONTRADICTED + NOT_IN_REFERENCE 的数量
+  - 依据 unsupported 的数量与严重程度，映射到 anchors 中的某一档
+  - 先写出逐条判定与计数，最后才给最终分数
+
+output_schema:
+  claims:
+    type: array
+    items:
+      claim: string
+      label: string        # SUPPORTED | CONTRADICTED | NOT_IN_REFERENCE
+      evidence: string
+  unsupported_count: integer
+  score: integer
+  reasoning: string
+
+# 偏差控制手段，报告附录会如实披露配置了哪些、没配置哪些
+bias_controls:
+  - id: verbosity
+    note: 标准中显式声明"长度不构成加分理由"
+  - id: self_preference
+    note: 裁判模型需与 SUT 跨模型族，由配置层校验并告警
