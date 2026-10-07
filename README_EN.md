@@ -1,10 +1,12 @@
 <div align="center">
 
-# llmeval
+# LLMEval · Trustworthy LLM Evaluation Framework
 
-**A pluggable LLM evaluation framework: eval sets × three-tier judging × bias control × judge calibration × attribution loop**
+**Three-tier judging × bias control × judge calibration × attribution loop**
 
-简体中文 — [English](README_EN.md)
+*Methodology aligned with [G-Eval](https://arxiv.org/abs/2303.16634) (rubric paradigm), [MT-Bench / Chatbot Arena](https://arxiv.org/abs/2306.05685) (LLM-as-a-judge, position bias), [τ-bench](https://arxiv.org/abs/2406.12045) (pass^k reliability), PoLL (judge panels), and **ByteDance Seed's evaluation system** (Seed 1.8 / 2.0 / 2.1 Model Cards)*
+
+[简体中文](README.md) | English
 
 [![CI](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml/badge.svg)](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

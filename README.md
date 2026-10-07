@@ -1,10 +1,12 @@
 <div align="center">
 
-# llmeval
+# LLMEval · 可信大模型评测框架
 
-**可插拔的大模型能力评测框架：评测集 × 三层判定 × 偏差控制 × 裁判校准 × 归因闭环**
+**三层判定 × 偏差控制 × 裁判校准 × 归因闭环**
 
-*A pluggable LLM evaluation framework* — [English](README_EN.md) | 简体中文
+*方法学对齐：[G-Eval](https://arxiv.org/abs/2303.16634)（评分表范式）· [MT-Bench / Chatbot Arena](https://arxiv.org/abs/2306.05685)（LLM-as-a-Judge 与位置偏差）· [τ-bench](https://arxiv.org/abs/2406.12045)（pass^k 可靠性）· PoLL（裁判委员会）· **字节跳动 Seed 评测体系**（Seed 1.8 / 2.0 / 2.1 Model Card）*
+
+*A Trustworthy LLM Evaluation Framework — [English](README_EN.md) | 简体中文*
 
 [![CI](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml/badge.svg)](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
