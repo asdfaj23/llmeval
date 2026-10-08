@@ -27,6 +27,57 @@ def make_response(text: str, sut: str = "m1") -> Response:
     return Response(sample_id="t-001", sut_id=sut, text=text)
 
 
+class TestJsonSchemaArray(unittest.TestCase):
+    """json_schema 的数组形态：required 里的字段要落在每个元素上。
+
+    数组形态是后补的：原先只检查对象顶层字段，导致「输出 JSON 数组，
+    每个对象含 xx 字段」这类题在规则层无法判定，gold 自己都会被判不合规。
+    """
+
+    def _verdict(self, text, value):
+        s = make_sample(constraints=[{"type": "json_schema", "value": value}])
+        return evaluate_constraints(s, make_response(text))
+
+    def test_array_all_elements_have_required_keys(self):
+        v = self._verdict(
+            '[{"city": "北京", "population": 2189}, {"city": "上海", "population": 2487}]',
+            {"root": "array", "required": ["city", "population"]},
+        )
+        self.assertTrue(v.passed)
+
+    def test_array_missing_key_in_one_element_fails(self):
+        v = self._verdict(
+            '[{"city": "北京", "population": 2189}, {"city": "上海"}]',
+            {"root": "array", "required": ["city", "population"]},
+        )
+        self.assertFalse(v.passed)
+        self.assertIn("数组元素缺少必需字段", str(v.detail))
+
+    def test_declared_array_but_object_given_fails(self):
+        v = self._verdict(
+            '{"city": "北京"}', {"root": "array", "required": ["city"]}
+        )
+        self.assertFalse(v.passed)
+
+    def test_declared_object_but_array_given_fails(self):
+        v = self._verdict(
+            '[{"name": "法国"}]', {"root": "object", "required": ["name"]}
+        )
+        self.assertFalse(v.passed)
+
+    def test_empty_array_fails(self):
+        v = self._verdict("[]", {"root": "array", "required": ["city"]})
+        self.assertFalse(v.passed)
+
+    def test_object_form_behaviour_unchanged(self):
+        """没有声明 root 的老题目，行为必须完全不变。"""
+        ok = self._verdict('{"name": "法国", "capital": "巴黎"}',
+                           {"required": ["name", "capital"]})
+        self.assertTrue(ok.passed)
+        bad = self._verdict('{"name": "法国"}', {"required": ["name", "capital"]})
+        self.assertFalse(bad.passed)
+
+
 class TestConstraints(unittest.TestCase):
     def test_no_constraints_returns_none(self):
         s = make_sample(constraints=[])

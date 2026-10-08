@@ -8,8 +8,10 @@ from pathlib import Path
 from llmeval import config as cfg
 from llmeval.analysis import build_strategy, dimension_matrix, summarize_model, win_matrix
 from llmeval.bias import summarize_bias
+from llmeval.collab.metrics import collect_collab_process
 from llmeval.pipeline import Runner, load_run
 from llmeval.report import render
+from llmeval.schema import Response, Sample
 
 
 def mock_only_models():
@@ -100,6 +102,52 @@ class TestEndToEnd(unittest.TestCase):
         self.assertIsNotNone(strong)
         self.assertIsNotNone(weak)
         self.assertGreater(strong, weak)
+
+    def test_decisive_scores_stay_on_the_1_to_5_scale(self):
+        """参与综合分的判定必须落在 1—5 区间。
+
+        这条守的是「指标口径统一」。像上下文体量这种以字符计的诊断量，
+        一旦漏标 decisive=False，就会被当成质量分平均进综合分 ——
+        曾把 multi_agent 维度从 4 分抬到 57 分，而报告上完全看不出是错的。
+        """
+        offenders: list[tuple[str, str, float]] = []
+        for turn in self.result.turns:
+            for v in turn.verdicts:
+                if not v.decisive or v.score is None:
+                    continue
+                if not (1.0 <= float(v.score) <= 5.0):
+                    offenders.append((turn.sample.id, v.metric, float(v.score)))
+        self.assertEqual(offenders[:5], [], "以下判定超出 1—5 口径，应改为 decisive=False")
+
+    def test_collab_diagnostics_are_not_decisive(self):
+        """协作过程诊断量必须 decisive=False，否则会污染综合分。
+
+        这里用合成样本而不是跑出来的 turns：评测 run 只取前若干题，
+        未必覆盖 multi_agent；依赖它会让这条守卫时灵时不灵。
+        """
+        sample = Sample(
+            id="ma-t1", dimension="multi_agent", task_type="multi_agent", prompt="协作任务"
+        )
+        response = Response(
+            sample_id="ma-t1",
+            sut_id="m1",
+            text="最终交付",
+            messages=[
+                {"role": "executor", "content": "第一版方案"},
+                {"role": "reviewer", "content": "不行",
+                 "structured": {"verdict": "reject", "issues": ["缺少预算"]}},
+                {"role": "executor", "content": "第二版方案，已补充预算明细"},
+                {"role": "reviewer", "content": "通过", "structured": {"verdict": "approve"}},
+            ],
+        )
+        verdicts = collect_collab_process(sample, response)
+        self.assertTrue(verdicts, "应产出协作过程判定")
+        guarded = {"collab_convergence", "collab_invalid_rounds"}
+        hit = guarded & {v.metric for v in verdicts}
+        self.assertTrue(hit, "合成样本应触发收敛 / 无效轮诊断量")
+        for v in verdicts:
+            if v.metric in guarded:
+                self.assertFalse(v.decisive, f"{v.metric} 占用 1—5 口径，应为 decisive=False")
 
     def test_analysis_outputs(self):
         stats = [

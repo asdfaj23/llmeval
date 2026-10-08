@@ -11,7 +11,7 @@
 [![CI](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml/badge.svg)](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-217%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-248%20passed-brightgreen.svg)](tests/)
 [![Dependencies](https://img.shields.io/badge/dependencies-1%20%28PyYAML%29-orange.svg)](requirements.txt)
 
 </div>
@@ -28,11 +28,12 @@ llmeval 走另一条路：**先梳理真实用例，再抽象成可评测的类�
 
 | | |
 |---|---|
-| 🧱 **三层判定架构** | 确定性规则（全量执行、零成本、零偏差）→ LLM 裁判（G-Eval / pairwise / 评审团）→ 人工标注（只用于校准）。核心取舍：**能用规则判的，绝不交给裁判**——约 81% 的题目由程序硬判定 |
+| 🧱 **三层判定架构** | 确定性规则（全量执行、零成本、零偏差）→ LLM 裁判（G-Eval / pairwise / 评审团）→ 人工标注（只用于校准）。核心取舍：**能用规则判的，绝不交给裁判**——实测约 81% 的判定条目由程序硬判定（一次性全量运行：规则 1429 条 vs LLM 裁判 344 条） |
 | 📊 **统计显著性标配** | 配对 McNemar 检验 + bootstrap 95% 置信区间。分差落在噪声范围内时，报告直接写「不足以判断谁更强」，不挑赢家 |
 | 🔁 **可靠性：pass^k** | 同题跑 k 次全过才算过（τ-bench 范式）。pass@k 与 pass^k 差距越大，模型越不稳定——上线决策该看的数 |
 | ⚖️ **裁判校准** | Cohen's κ（有序分用二次加权）+ 评审团内部一致性 + 中位数聚合抗离群。κ < 0.6 时报告自动挂警示：分数只作参考，不作为发布门禁 |
 | 🎭 **偏差控制与披露** | pairwise 强制双向换位（位置偏差）、冗长获胜率度量（冗长偏差）、裁判与被测同族自动告警（自偏好）。偏差不可消除，只能度量 + 缓解 + **如实披露** |
+| 🔒 **评测环境隔离** | 答案隔离自检（防「参考答案被写进题面」导致的静默失效）+ canary 泄漏扫描 + 工具轨迹审计，全部确定性、**零 API 成本**。隔离结论故意不进质量分——越界是「这轮结果能不能用」，不是「模型好不好」 |
 | 🔄 **数据飞轮闭环** | 失败归因 → 数据策略建议 → 候选题生成（带 `needs_review` 门禁），badcase 不是终点，是下一轮数据生产的起点 |
 | 🥊 **Agent 范式对比** | ReAct vs Plan-and-Execute：同一模型端点双 strategy 实例化，隔离「框架差异」而非「模型差异」，沿策略无关指标评估 |
 | 🪶 **极简可复现** | 运行时唯一依赖 PyYAML；HTTP 走标准库 urllib；统计全靠标准库实现；纯 CPU 可跑；内置 mock 离线跑通全流程 |
@@ -83,7 +84,7 @@ suts:
 
 ![评测报告预览](docs/assets/report_preview.png)
 
-*真实评测报告（GLM vs DeepSeek，290 题 / 13 维度 / 708 条执行记录）：运行概览 → 模型榜单（含 95% 置信区间）→ 能力画像雷达图 → 维度得分矩阵 → 显著性检验，全部在一份自包含 HTML 里。*
+*真实评测报告（GLM vs DeepSeek 全量运行：290 题 / 13 维度 / 708 条执行记录；题库此后扩充至 368 题）：运行概览 → 模型榜单（含 95% 置信区间）→ 能力画像雷达图 → 维度得分矩阵 → 显著性检验，全部在一份自包含 HTML 里。*
 
 ## 它在测什么：13 个能力维度
 
@@ -171,7 +172,7 @@ llmeval/
 │   ├── suites/                评测套件：数据集 × 指标 × 模型矩阵
 │   └── rubrics/               评分表（G-Eval 形态：criterion + steps + anchors）
 │
-├── datasets/                  评测集（JSONL，290+ 题，13 维度 × 易中难）
+├── datasets/                  评测集（JSONL，368 题，13 维度 × 易中难）
 │   ├── schema.md              评测集编写规范（必读）
 │   ├── general/               knowledge / instruction / reasoning / coding / ...
 │   ├── agent/  multiagent/  multiturn/  multimodal/  office/  safety/
@@ -191,7 +192,7 @@ llmeval/
 │   └── report.py              单文件 HTML 报告（内联 SVG 雷达图）
 │
 ├── scripts/                   评测集构建 / 金标 κ / 人工盲评页 / badcase 飞轮
-├── tests/                     pytest 离线单测（217 条，不调任何 API）
+├── tests/                     pytest 离线单测（248 条，不调任何 API）
 └── docs/                      评测体系 / 架构说明 / 命令手册 / Seed 方法对照
 ```
 
@@ -215,6 +216,9 @@ python run.py failures --run latest --top 5           # 终端快速看失败样
 | [docs/架构说明.md](docs/架构说明.md) | 代码结构、数据流、怎么加维度/指标/被测对象 |
 | [docs/命令手册.md](docs/命令手册.md) | 全部命令、六个典型场景、参数详解 |
 | [docs/字节评测方法对照.md](docs/字节评测方法对照.md) | 每条设计对应的字节 Seed 方法与顶会论文出处，含构念效度自检 |
+| [docs/沙盒与隔离.md](docs/沙盒与隔离.md) | 隔离做到哪一层、为什么不做容器、八层防护的成本排序 |
+| [docs/指标与维度对照.md](docs/指标与维度对照.md) | 13 个维度对应的公开 benchmark、产出指标、判定层级与通过线 |
+| [docs/维度边界定义.md](docs/维度边界定义.md) | 13 个维度的 in/out-of-scope、易混维度的判定规则、难度定义 |
 | [datasets/schema.md](datasets/schema.md) | 评测集编写规范 |
 
 ## 诚实的边界
@@ -223,20 +227,20 @@ python run.py failures --run latest --top 5           # 终端快速看失败样
 
 1. **模拟数据不是结论。** mock 只验证流水线，不代表任何真实模型的能力。
 2. **没有人工标注就算不出 κ。** 报告的「裁判可信度」会留空，不用别的指标顶替。
-3. **290+ 题仍是种子集规模，不是生产题库。** 题目是人工构造的，不是从真实用户请求采样的——这是与工业界评测最主要差距，路线图正在补。
+3. **368 题仍是种子集规模，不是生产题库。** 题目是人工构造的，不是从真实用户请求采样的——这是与工业界评测最主要差距，路线图正在补。
 4. **分差要过统计检验才下结论。** 落在噪声范围内时，报告直接写「不足以判断谁更强」。
-5. **代码判定尚未真实执行。** `coding` 维度目前靠裁判读代码打分，沙箱执行是路线图第一项。
+5. **代码执行只是弱隔离。** `coding` 维度在配了 `tests` 的题目上走子进程真实执行（独立临时目录 + 10 秒硬超时 + 静态黑名单），但这是弱隔离、不是容器级沙箱；没配 `tests` 的题退回裁判。
 
 ## 路线图
 
-- [ ] `coding` 维度接入子进程沙箱真实执行
+- [ ] `coding` 维度接入容器级沙箱（当前为子进程弱隔离）
 - [ ] 全维度开启 repeats，pass^k 覆盖所有维度
 - [ ] 引入真实用户请求采样，扩充题库
 - [ ] 英文评测集与报告国际化
 
 ## 贡献
 
-欢迎 Issue 与 PR！见 [CONTRIBUTING.md](CONTRIBUTING.md)——新维度、新指标、新 SUT 都有标准接入方式；最被欢迎的贡献是 coding 沙箱执行器。请遵守[行为准则](CODE_OF_CONDUCT.md)。
+欢迎 Issue 与 PR！见 [CONTRIBUTING.md](CONTRIBUTING.md)——新维度、新指标、新 SUT 都有标准接入方式；最被欢迎的贡献是容器级 coding 沙箱。请遵守[行为准则](CODE_OF_CONDUCT.md)。
 
 ## 引用
 

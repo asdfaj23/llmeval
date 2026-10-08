@@ -359,6 +359,60 @@ def _bias_block(bias: dict[str, Any]) -> str:
     <p class="muted small">{_esc(bias.get('disclosure', ''))}</p>"""
 
 
+def _containment_block(summary: RunSummary) -> str:
+    """评测环境隔离披露。
+
+    这一节的意义是「让人知道有这么一道检查」，所以干净时只给一行状态；
+    一旦有越界记录才展开细节 —— 那时候读者需要看到具体是哪条、哪一类。
+    """
+    c = summary.containment or {}
+    if not c:
+        return (
+            "<p class='muted small'>本次运行未包含隔离审计"
+            "（旧版本的 summary.json 不含该字段）。</p>"
+        )
+
+    checked = c.get("n_checked", 0)
+    n_bad = c.get("n_violations", 0)
+    by_kind = c.get("by_kind") or {}
+    clean = bool(c.get("clean", n_bad == 0))
+
+    if clean:
+        head = (
+            f"<p class='muted small'>已审计 <b>{_esc(checked)}</b> 条记录，"
+            "未发现答案泄漏、canary 命中或越界工具调用。</p>"
+        )
+        detail = ""
+    else:
+        head = (
+            f"<p><span class='chip chip-warn'>发现 {_esc(n_bad)} 条越界记录，"
+            "该轮结果需人工复核</span></p>"
+            f"<p class='muted small'>已审计 {_esc(checked)} 条记录。</p>"
+        )
+        rows = "".join(
+            f"<li>{_esc(v.get('sample_id'))}（{_esc(v.get('sut_id'))}）："
+            f"答案泄漏 {_esc(v.get('answer_leaks'))} · "
+            f"canary 命中 {_esc(v.get('canary_hits'))} · "
+            f"轨迹疑点 {_esc(v.get('trace_findings'))}</li>"
+            for v in (c.get("violations") or [])
+        )
+        detail = f"<ul class='tight'>{rows}</ul>"
+
+    return (
+        head
+        + '<div class="grid-2" style="margin-top:10px">'
+        "<div><h4>三类审计结果</h4>"
+        f"<div class=\"kv\"><span>答案隔离泄漏</span><b>{_esc(by_kind.get('answer_leak', 0))}</b></div>"
+        f"<div class=\"kv\"><span>canary 命中</span><b>{_esc(by_kind.get('canary_hit', 0))}</b></div>"
+        f"<div class=\"kv\"><span>轨迹疑点</span><b>{_esc(by_kind.get('trace_finding', 0))}</b></div>"
+        "</div><div><h4>覆盖范围</h4>"
+        "<p class=\"muted small\">答案隔离自检 + canary 泄漏扫描 + 工具轨迹审计；"
+        "全部为确定性判定，零 API 成本。仅覆盖会调用工具的题型。</p></div></div>"
+        + detail
+        + f"<p class='muted small'>{_esc(c.get('note', ''))}</p>"
+    )
+
+
 def _strategy_block(strategy: list[dict[str, Any]]) -> str:
     if not strategy:
         return "<p class='muted'>没有失败样本，或本轮没有产生判定结果。</p>"
@@ -513,16 +567,21 @@ def _significance_block(rows: list[dict[str, Any]]) -> str:
 
 
 def _dimension_appendix() -> str:
-    rows = "".join(
-        f"<tr><td><b>{_esc(v['name'])}</b></td><td><code>{_esc(k)}</code></td>"
-        f"<td>{_esc(v['seed_anchor'])}</td></tr>"
+    """维度溯源卡片。
+
+    刻意用卡片而不是 5 列表格：这里每格都是一整句话，
+    挤进表格只会变得没人看。分类是否清晰，取决于读者愿不愿意读完。
+    """
+    cards = "".join(
+        f"<div style='margin-bottom:14px'>"
+        f"<b>{_esc(v['name'])}</b> <code>{_esc(k)}</code>"
+        f"<div class='muted small'>Seed 对齐：{_esc(v['seed_anchor'])}</div>"
+        f"<div class='muted small'>对标 benchmark：{_esc(v.get('benchmark', '—'))}</div>"
+        f"<div class='muted small'>产出指标：{_esc(v.get('metrics', '—'))}</div>"
+        f"</div>"
         for k, v in DIMENSIONS.items()
     )
-    return f"""
-    <table>
-      <thead><tr><th>能力维度</th><th>标识</th><th>对齐依据</th></tr></thead>
-      <tbody>{rows}</tbody>
-    </table>"""
+    return f"<div class='grid-2'>{cards}</div>"
 
 
 # ------------------------------------------------------------------ 主渲染
@@ -645,7 +704,7 @@ def render_html(
   <section>
     <h2>模型榜单</h2>
     {_leaderboard(stats)}
-    <p class="muted small">综合分取 1—5 均值；置信区间由自助法（1000 次重采样）给出。
+    <p class="muted small">综合分取 1—5 均值；置信区间由自助法（4000 次重采样）给出。
     区间重叠的两个模型，排名差异不足以支撑结论。</p>
   </section>
 
@@ -685,6 +744,11 @@ def render_html(
   <section>
     <h2>偏差度量与披露</h2>
     {_bias_block(bias or {})}
+  </section>
+
+  <section>
+    <h2>评测环境隔离</h2>
+    {_containment_block(summary)}
   </section>
 
   <section>

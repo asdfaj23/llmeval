@@ -11,7 +11,7 @@
 [![CI](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml/badge.svg)](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-217%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-248%20passed-brightgreen.svg)](tests/)
 [![Dependencies](https://img.shields.io/badge/dependencies-1%20%28PyYAML%29-orange.svg)](requirements.txt)
 
 </div>
@@ -28,11 +28,12 @@ llmeval takes the other road: **derive evaluable categories from real use cases 
 
 | | |
 |---|---|
-| 🧱 **Three-tier judging** | Deterministic rules (full coverage, zero cost, zero bias) → LLM judges (G-Eval / pairwise / panel) → human labels (calibration only). Core trade-off: **whatever a rule can judge never goes to a judge** — ~81% of items are hard-judged in code |
+| 🧱 **Three-tier judging** | Deterministic rules (full coverage, zero cost, zero bias) → LLM judges (G-Eval / pairwise / panel) → human labels (calibration only). Core trade-off: **whatever a rule can judge never goes to a judge** — ~81% of verdicts are decided by code (one full run: 1429 rule verdicts vs 344 judge verdicts) |
 | 📊 **Significance testing by default** | Paired McNemar test + bootstrap 95% CIs. When a gap falls inside the noise band, the report says "insufficient evidence" instead of picking a winner |
 | 🔁 **Reliability: pass^k** | An item counts only if the model passes it k times in a row (τ-bench style). The gap between pass@k and pass^k is the number deployment decisions should look at |
 | ⚖️ **Judge calibration** | Cohen's κ (quadratically weighted for ordinal scores) + inter-judge agreement + median aggregation against outliers. Below κ = 0.6 the report warns: scores are advisory only, not a release gate |
 | 🎭 **Bias control & disclosure** | Forced bidirectional swap in pairwise (position bias), longer-wins rate (verbosity bias), same-family judge/SUT alerting (self-preference). Bias can't be eliminated — only measured, mitigated, and **honestly disclosed** |
+| 🔒 **Eval-environment isolation** | Answer-isolation self-check (catches the silent failure where the reference answer leaks into the prompt) + canary leak scanning + tool-trace audit. All deterministic, **zero API cost**. Findings deliberately stay out of capability scores — a breach is "can we trust this run", not "is the model good" |
 | 🔄 **Data flywheel** | Failure attribution → data strategy suggestions → candidate item generation (gated by `needs_review`). A badcase is not the end; it is the start of the next data cycle |
 | 🥊 **Agent paradigm comparison** | ReAct vs Plan-and-Execute on the same benchmark: the same model endpoint instantiated twice with different strategies, isolating *framework* differences rather than *model* differences |
 | 🪶 **Minimal & reproducible** | Single runtime dependency (PyYAML); HTTP via stdlib `urllib`; statistics in pure stdlib; CPU-only; offline mock mode runs the entire pipeline with zero credentials |
@@ -60,7 +61,7 @@ You get a **self-contained single-file HTML report** at `outputs/runs/<run_id>/r
 
 ![Evaluation report preview](docs/assets/report_preview.png)
 
-*A real evaluation report (GLM vs DeepSeek, 290 items / 13 dimensions / 708 execution records): run overview → leaderboard with 95% CIs → capability radar → dimension heatmap → significance tests, all in one self-contained HTML file.*
+*A real evaluation report (GLM vs DeepSeek, full run: 290 items / 13 dimensions / 708 execution records; the bank has since grown to 368 items): run overview → leaderboard with 95% CIs → capability radar → dimension heatmap → significance tests, all in one self-contained HTML file.*
 
 > **About mock**: the two enabled mock models only verify that the pipeline works. They produce simulated data and **say nothing about any real model's capability** (the report shows a red warning banner). Plug in real APIs for real results — see below.
 
@@ -143,11 +144,11 @@ llmeval/
 ├── run.py                     CLI entry point
 ├── requirements.txt           the only dependency: PyYAML
 ├── configs/                   models registry, suites, G-Eval rubrics
-├── datasets/                  290+ JSONL items, 13 dimensions × 3 difficulty levels
+├── datasets/                  368 JSONL items, 13 dimensions × 3 difficulty levels
 ├── src/llmeval/               schema / client / mock / sut / metrics / bias /
 │                              calibration / stats / pipeline / analysis / report
 ├── scripts/                   eval-set builder, gold-κ, human review page, badcase flywheel
-├── tests/                     217 offline pytest cases (zero API calls)
+├── tests/                     248 offline pytest cases (zero API calls)
 └── docs/                      methodology & architecture (Chinese)
 ```
 
@@ -155,13 +156,13 @@ llmeval/
 
 1. **Simulated data is not a conclusion.** Mock validates the pipeline, nothing more.
 2. **No human labels → no κ.** The report leaves the trustworthiness section blank rather than substituting another metric.
-3. **290+ items is a seed set, not a production bank.** Items are handcrafted, not sampled from real user requests — the main gap vs industrial practice, on the roadmap.
+3. **368 items is a seed set, not a production bank.** Items are handcrafted, not sampled from real user requests — the main gap vs industrial practice, on the roadmap.
 4. **Conclusions require significance.** Inside the noise band the report says "insufficient evidence".
-5. **Coding is not executed yet.** The `coding` dimension is judge-graded today; sandboxed execution is roadmap item #1.
+5. **Code execution is only weakly isolated.** Items with `tests` run in a subprocess (isolated temp dir + 10s hard timeout + static blacklist) — that is not a container sandbox. Items without `tests` fall back to the judge.
 
 ## Contributing
 
-Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese). New dimensions, metrics, and SUTs all have standard plug-in points; the most wanted contribution is a sandboxed coding executor. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese). New dimensions, metrics, and SUTs all have standard plug-in points; the most wanted contribution is a container-level coding sandbox. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Citing
 
