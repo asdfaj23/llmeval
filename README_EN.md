@@ -1,168 +1,214 @@
-<div align="center">
+# llmeval
 
-# LLMEval · Trustworthy LLM Evaluation Framework
-
-**Three-tier judging × bias control × judge calibration × attribution loop**
-
-*Methodology aligned with [G-Eval](https://arxiv.org/abs/2303.16634) (rubric paradigm), [MT-Bench / Chatbot Arena](https://arxiv.org/abs/2306.05685) (LLM-as-a-judge, position bias), [τ-bench](https://arxiv.org/abs/2406.12045) (pass^k reliability), PoLL (judge panels), and **ByteDance Seed's evaluation system** (Seed 1.8 / 2.0 / 2.1 Model Cards)*
-
-[简体中文](README.md) | English
+An LLM evaluation framework I wrote from scratch. 368 items, 13 capability dimensions, three-tier judging, and a single self-contained HTML report at the end of one command. Runs fully offline.
 
 [![CI](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml/badge.svg)](https://github.com/asdfaj23/llmeval/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-248%20passed-brightgreen.svg)](tests/)
-[![Dependencies](https://img.shields.io/badge/dependencies-1%20%28PyYAML%29-orange.svg)](requirements.txt)
 
-</div>
+One runtime dependency (PyYAML). HTTP goes through stdlib `urllib`, the statistics are hand-rolled, CPU only, no GPU, no Docker.
+
+中文说明见 [README.md](README.md)。
 
 ---
 
-## Why this exists
+## Why I wrote another one
 
-The common recipe for "LLM evaluation" is: grab a few public benchmarks, run them, publish a ranking. That road has three unavoidable problems — **public benchmarks saturate fast** (vendors optimize against them, discriminative power decays within months), **they diverge from real usage** (a high leaderboard score says little about handling a messy real-world request), and **they are unexplainable** (a total score tells you nothing about where the weakness is or what data to collect next).
+Public leaderboards are no use when you actually need to compare two models. They saturate fast (vendors optimize against them and the spread collapses within months), they drift from real usage (a high score says little about a long, messy, jumping-around request), and they only give you a number (nothing about where the weakness is or what data to collect next).
 
-llmeval takes the other road: **derive evaluable categories from real use cases first**, and make evaluation *reproducible, trustworthy, and actionable*. The design aligns with the ByteDance Seed evaluation methodology (Seed1.8 three principles / Seed2.0 four-axis framework / Seed2.1 product-driven evaluation) and adds a construct-validity check inspired by the NeurIPS 2025 audit finding that only 16% of 445 benchmark papers used statistical tests when comparing models — llmeval makes paired testing the default.
+There is a quieter problem too: hardly anyone runs a significance test. The NeurIPS 2025 construct-validity audit went through 445 benchmark papers and found only 16% used statistical tests when comparing models. A 0.1 gap over ~200 items is very plausibly noise, but the report reads like a conclusion.
 
-## Highlights
+So I wrote this as if it were a report someone would audit. Four rules:
 
-| | |
-|---|---|
-| 🧱 **Three-tier judging** | Deterministic rules (full coverage, zero cost, zero bias) → LLM judges (G-Eval / pairwise / panel) → human labels (calibration only). Core trade-off: **whatever a rule can judge never goes to a judge** — ~81% of verdicts are decided by code (one full run: 1429 rule verdicts vs 344 judge verdicts) |
-| 📊 **Significance testing by default** | Paired McNemar test + bootstrap 95% CIs. When a gap falls inside the noise band, the report says "insufficient evidence" instead of picking a winner |
-| 🔁 **Reliability: pass^k** | An item counts only if the model passes it k times in a row (τ-bench style). The gap between pass@k and pass^k is the number deployment decisions should look at |
-| ⚖️ **Judge calibration** | Cohen's κ (quadratically weighted for ordinal scores) + inter-judge agreement + median aggregation against outliers. Below κ = 0.6 the report warns: scores are advisory only, not a release gate |
-| 🎭 **Bias control & disclosure** | Forced bidirectional swap in pairwise (position bias), longer-wins rate (verbosity bias), same-family judge/SUT alerting (self-preference). Bias can't be eliminated — only measured, mitigated, and **honestly disclosed** |
-| 🔒 **Eval-environment isolation** | Answer-isolation self-check (catches the silent failure where the reference answer leaks into the prompt) + canary leak scanning + tool-trace audit. All deterministic, **zero API cost**. Findings deliberately stay out of capability scores — a breach is "can we trust this run", not "is the model good" |
-| 🔄 **Data flywheel** | Failure attribution → data strategy suggestions → candidate item generation (gated by `needs_review`). A badcase is not the end; it is the start of the next data cycle |
-| 🥊 **Agent paradigm comparison** | ReAct vs Plan-and-Execute on the same benchmark: the same model endpoint instantiated twice with different strategies, isolating *framework* differences rather than *model* differences |
-| 🪶 **Minimal & reproducible** | Single runtime dependency (PyYAML); HTTP via stdlib `urllib`; statistics in pure stdlib; CPU-only; offline mock mode runs the entire pipeline with zero credentials |
+- If code can decide it, don't pay a judge to guess
+- A gap has to survive a paired test, otherwise the report says "insufficient evidence"
+- The judge gets calibrated too; below κ = 0.6 the scores are advisory
+- If the environment misbehaves, the run is void. Dirty scores don't get averaged into capability
 
-## Quick start
+Item design and dimensions follow ByteDance Seed's evaluation practice (the three principles in Seed 1.8, the four-axis framework in 2.0, product-driven evaluation in 2.1). The point-by-point mapping is in [docs/字节评测方法对照.md](docs/字节评测方法对照.md).
 
-**Requirements**: Python 3.10+, no GPU, no API key (the offline demo needs nothing).
+## Three minutes to a run
 
 ```bash
 git clone https://github.com/asdfaj23/llmeval.git
 cd llmeval
-pip install PyYAML        # the only runtime dependency
+pip install PyYAML                              # that's the whole dependency list
 
-# 1. List suites, rubrics, capability dimensions, model status
-python run.py list
-
-# 2. Run a full evaluation (built-in mock models, fully offline)
-python run.py run --suite all --pairwise
-
-# 3. Render the report (pure local computation, no model calls)
-python run.py report --run latest --open
+python run.py list                              # suites, rubrics, dimensions, model status
+python run.py run --suite all --pairwise        # full run (mock models, offline)
+python run.py report --run latest --open        # render report locally, no extra model calls
 ```
 
-You get a **self-contained single-file HTML report** at `outputs/runs/<run_id>/report.html`.
+The report lands at `outputs/runs/<run_id>/report.html`, one file, inline SVG charts, mail it to anyone.
 
-![Evaluation report preview](docs/assets/report_preview.png)
+About mock: the two enabled mock models exist to prove the pipeline isn't broken. Their numbers are simulated, and quoting them as evidence about a real model would be wrong. The report puts a red banner at the top so you can't forget.
 
-*A real evaluation report (GLM vs DeepSeek, full run: 290 items / 13 dimensions / 708 execution records; the bank has since grown to 368 items): run overview → leaderboard with 95% CIs → capability radar → dimension heatmap → significance tests, all in one self-contained HTML file.*
+### Point it at your own models
 
-> **About mock**: the two enabled mock models only verify that the pipeline works. They produce simulated data and **say nothing about any real model's capability** (the report shows a red warning banner). Plug in real APIs for real results — see below.
-
-### Connect real models
-
-Change two files, no code:
+Two files change, no code:
 
 ```bash
-cp .env.example .env        # fill in any provider's API key
+cp .env.example .env            # put your API key here
 ```
 
 ```yaml
-# configs/models.yaml — flip enabled to true for the models you want to test
+# configs/models.yaml — flip enabled for whatever you want to test
 suts:
   - id: deepseek-chat
     provider: deepseek
     model: deepseek-chat
-    enabled: true             # ← here
+    enabled: true
 ```
 
-Built-in providers: Volcengine Ark / DeepSeek / Moonshot / Qwen (DashScope) / Zhipu GLM / OpenAI — all OpenAI-compatible; switching providers only changes `base_url`.
+Providers built in: Volcengine Ark, DeepSeek, Moonshot, Qwen/DashScope, Zhipu, OpenAI. All OpenAI-compatible, so switching vendors is a `base_url` edit.
 
-## What it measures: 13 capability dimensions
+## The item bank: 368 items, 13 dimensions
 
-Every dimension is annotated with its source of truth — real use cases or public benchmarks — **dimensions are derived from real usage, not copied from leaderboards**:
+Dimensions weren't copied off a leaderboard. They were derived from real use cases first, then made evaluable. What each dimension covers and deliberately excludes is in [docs/维度边界定义.md](docs/维度边界定义.md); items that straddle two dimensions carry `sole_judge` / `belongs_elsewhere` fields so credit is counted exactly once.
 
-| Dimension | What it measures | Anchor |
+| Dimension | Items | Why it's here |
 |---|---|---|
-| `knowledge` | Factuality, long-tail knowledge | Seed2.0 model card: long-tail knowledge gap |
-| `instruction` | Complex instruction following | Seed2.0 model card: multi-step instruction failures |
-| `reasoning` | Math, logic, multi-step reasoning | Seed principle: "push the frontier of intelligence" |
-| `coding` | Code correctness, Vibe Coding | Seed2.0 four-axis framework |
-| `long_context` | Extract & reason over long documents | Seed2.0 four-axis framework |
-| `agent` | Tool calling, trajectories | τ-bench & GAIA paradigms |
-| `multi_agent` | Division of labor, checks & balances | MultiAgentBench; Seed2.1 harness-aware evaluation |
-| `knowledge_graph` | Triple extraction, multi-hop reasoning | Structured-knowledge scenarios |
-| `realworld` | End-to-end task completion | Seed2.0 four-axis framework |
-| `multiturn` | Multi-turn consistency | "LLMs Get Lost in Multi-Turn Conversation" |
-| `multimodal` | Chart reading, counting, spatial, diagram understanding | Cross-modal data scenarios |
-| `office` | Office & productivity tasks | Largest category in Seed2.1 crowdsourced tasks |
-| `safety` | Refusal boundaries, hallucination, prompt injection | AI safety team scope |
+| `reasoning` | 40 | Seed's "push the frontier" principle |
+| `knowledge` | 38 | Long-tail knowledge gaps, called out in the Seed 2.0 card |
+| `instruction` | 32 | Complex multi-step instruction failures, same card |
+| `coding` | 30 | Items with `tests` actually execute, no judge reading code |
+| `safety` | 30 | Refusal boundaries, hallucination, prompt injection |
+| `agent` | 28 | Tool calls and trajectories, after τ-bench / GAIA |
+| `multiturn` | 28 | Information retention, from "LLMs Get Lost in Multi-Turn Conversation" |
+| `multimodal` | 26 | Chart reading, counting, spatial relations; images are script-generated |
+| `realworld` | 25 | End-to-end task completion |
+| `knowledge_graph` | 24 | Triple extraction, multi-hop reasoning |
+| `long_context` | 24 | Extract and reason over long documents |
+| `multi_agent` | 24 | Division of labour and checks, after MultiAgentBench |
+| `office` | 19 | The largest category in Seed 2.1's crowdsourced tasks |
 
-## Real evaluation results
+Difficulty splits 49 easy / 156 medium / 163 hard. Early versions had too many easy items to separate anything, so hard got filled out to just over 40%.
 
-The framework has completed full 13-dimension evaluations of two production models (708 execution records, 0 call errors, temperature 0.0), plus an agent-paradigm comparison on the same benchmark:
+## Judging happens in three tiers
 
-**Model comparison (DeepSeek vs GLM)**:
-- Overall 4.29 vs 4.13; paired McNemar on 241 items, p = 0.0104 — **statistically significant**
-- Very different weakness profiles: the largest gap is coding (4.83 vs 3.68); knowledge-graph and office tasks split the wins
-- Counter-intuitive cost: DeepSeek's total cost is ~3.3× GLM's — capability conclusions must be read together with cost
-- Reliability: both models' pass^3 ≈ 0.34; unstable items 7 vs 4 — similar means, different stability
+```
+Tier 1  Deterministic rules   full coverage, free, unbiased, reproducible
+        format / length / must-contain / JSON schema / regex / MCQ / numeric tolerance / safety heuristics
 
-**Paradigm comparison (ReAct vs Plan-and-Execute, same endpoint)**:
-- Task quality identical (both 5.0/5) — with strong models, pick a framework by task length and cost, not quality
-- 3× interaction overhead difference: ReAct ~4 calls vs Plan-and-Execute ~12
-- Qualitative: ReAct is lighter and adapts better to dynamic environments; Plan-and-Execute trades overhead for explicit plans, auditability, and structured failure recovery
+Tier 2  LLM judges            sampled, costs money, needs calibration
+        G-Eval single scoring / pairwise with forced swap / reference-aligned / judge panels
 
-> These numbers are snapshots and will drift as the eval set and models evolve. **How a conclusion is reached matters more than the conclusion**: every claim above carries a significance test, a confidence interval, and per-item inspectable verdict details.
+Tier 3  Human labels          small sample, calibrates Tier 2 rather than producing scores
+        Cohen's κ (quadratically weighted for ordinal) / agreement / Spearman / MAE
+```
 
-## Report contents
+The reasoning is mundane: whether a response stayed under a word limit is a deterministic question, and paying an LLM to answer it is both expensive and a free source of bias. Same for multi-agent failure modes, a reviewer that never rejects, a rejection nobody acts on, one role doing everything. Those are countable from the transcript.
 
-| Section | Question it answers |
-|---|---|
-| Run overview | How much ran, cost, errors |
-| Leaderboard | Who is stronger, **and whether the gap is significant** (bootstrap 95% CI) |
-| Capability radar | Where the strengths and weaknesses are |
-| Dimension matrix | Full model × dimension heatmap |
-| Win-rate matrix | Pairwise relative strength (bidirectional swap; position-sensitive → tie) |
-| Reliability | pass@k vs pass^k |
-| Judge trustworthiness | κ — can the judge's scores be trusted at all |
-| Panel agreement | Inter-judge weighted κ / exact agreement / mean divergence |
-| Bias metrics | Position consistency, verbosity preference, self-preference risk — all disclosed |
-| Weakness attribution & data strategy | Failure-type distribution → what data to collect next |
-| Failure details | Expandable badcases with prompt/response/reference/verdict detail |
+In practice about 80% of verdicts come from code. On the full 290-item run it was 1429 rule verdicts against 344 judge verdicts.
 
-## Repository layout
+Tier 2 carries three defences: pairwise always swaps positions (position bias), longer-wins is measured (verbosity bias), and a judge from the same family as the model under test raises an alert (self-preference). Bias can't be removed, only measured, mitigated, and disclosed. Panels aggregate on the median; PoLL convinced me of that.
+
+## Comparing two models
+
+Gaps only get reported if they survive a test: paired McNemar plus bootstrap 95% CIs, and when a difference sits inside the noise band the report writes "insufficient evidence to say which is stronger" instead of picking a winner.
+
+One full real run is done, on two production models (that was the 290-item bank: 708 execution records, 0 call errors, temperature fixed at 0.0):
+
+- Overall 4.29 vs 4.13, paired over 241 items, McNemar p = 0.0104, so the difference is real
+- Weakness profiles are nothing alike: coding is the biggest gap (4.83 vs 3.68), knowledge graph and office tasks split the wins
+- Cost went the unexpected way: DeepSeek ran about 3.3x GLM, so capability claims have to be read next to cost
+- Reliability: both sit at pass^3 = 0.34, with 7 vs 4 unstable items. Similar means, different stability
+
+There's also an agent-paradigm comparison on the same bank, ReAct vs Plan-and-Execute, two strategy instances over one model endpoint, so the difference is the framework and not the model. Quality tied at 5.0/5; interaction cost differed 3x (~4 calls vs ~12). With strong models you pick a framework by task length and cost, not by score.
+
+Those numbers are a snapshot of that bank and those versions. What I care about more is how they were reached: every claim carries its test, its interval, and per-item verdict details you can expand.
+
+## The part I added last: eval-environment isolation
+
+An interviewer asked whether an agent driven over API should be sandboxed so it can't go looking for answers. Fair question, and the failure mode is nasty: the reference answer sits right there, the model copies it, scores full marks, and nothing in the report looks wrong. No crash, no error, just a wasted run that reads like a triumph.
+
+`src/llmeval/containment.py` runs three audits, all deterministic and free:
+
+- Answer isolation: protected fragments (references, gold labels, expected test values) must not appear in anything the model can see. Fragments under 12 characters are skipped, because an MCQ gold of "B" showing up in the item is normal, and a check that cries wolf gets ignored
+- Canary scan: each item derives a deterministic marker from its id. If that marker shows up in a response or a tool trace, the model reached something it shouldn't have. The scan looks for every marker, not just its own, since another item's marker means cross-contamination
+- Tool trajectory audit: calls outside the whitelist, path traversal, system directories, answer filenames, external hosts. All logged, all reviewable. The blacklist is deliberately narrow; words like `format` or `del` don't belong in it
+
+Full-bank result: 368 items, 0 leaks. The check runs in CI, so anyone who writes an answer into the prompt gets blocked at the pull request. A companion script (`scripts/audit_reference.py`) checks reference answers against their own constraints, and it caught a real bug on the spot: one instruction item's reference answer exceeded the word limit stated in its own prompt, so full marks were unreachable and every verdict on it was wrong.
+
+To be clear about the ceiling: this is weak isolation, not a container sandbox. No Docker, no seccomp, no forced network cut. Every tool here is a pure function reading `context`, writing nothing and calling nowhere, so at this stage there isn't much to isolate. Isolation findings also stay out of capability scores on purpose: a breach answers "can this run be trusted", not "is the model good", and averaging it into capability dilutes exactly the signal that should trigger a rerun. Cost-ordered eight-layer plan in [docs/沙盒与隔离.md](docs/沙盒与隔离.md).
+
+## What the report looks like
+
+![Evaluation report](docs/assets/report_preview.png)
+
+That's the real report from the GLM vs DeepSeek run: overview, leaderboard with 95% CIs, capability radar, dimension heatmap, significance tests, all in one HTML file.
+
+Beyond scores it reports judge trustworthiness (κ below threshold gets marked advisory, missing human labels leaves the cell blank rather than substituting another metric), position consistency, verbosity preference, failure-type distribution mapped to what data to collect next, and expandable badcases. Mock runs always show the red banner.
+
+## Layout
 
 ```
 llmeval/
-├── run.py                     CLI entry point
-├── requirements.txt           the only dependency: PyYAML
-├── configs/                   models registry, suites, G-Eval rubrics
-├── datasets/                  368 JSONL items, 13 dimensions × 3 difficulty levels
-├── src/llmeval/               schema / client / mock / sut / metrics / bias /
-│                              calibration / stats / pipeline / analysis / report
-├── scripts/                   eval-set builder, gold-κ, human review page, badcase flywheel
-├── tests/                     248 offline pytest cases (zero API calls)
-└── docs/                      methodology & architecture (Chinese)
+├── run.py                 CLI entry
+├── configs/
+│   ├── models.yaml        SUTs, judges, runtime params
+│   ├── suites/            suite = datasets × metrics × models
+│   └── rubrics/           G-Eval style rubrics (criterion + steps + anchors)
+├── datasets/              368 JSONL items, schema.md for writing more
+│   └── calibration/       human labels for judge calibration
+├── src/llmeval/
+│   ├── schema.py          data structures + dimension table
+│   ├── client.py          one HTTP client: caching, retries, concurrency
+│   ├── sut/               chat / agent / multi_agent / multi_turn
+│   ├── metrics/           the three tiers live here
+│   ├── containment.py     isolation audits
+│   ├── bias.py            bias metrics
+│   ├── calibration.py     κ and panel agreement
+│   ├── stats.py           McNemar + bootstrap
+│   ├── pipeline.py        orchestration
+│   ├── analysis.py        aggregation, attribution, data strategy
+│   └── report.py          single-file HTML report
+├── scripts/               bank builder, gold κ, blind review page, badcase loop
+├── tests/                 256 offline pytest cases, zero API calls
+└── docs/                  methodology, architecture, commands, isolation
 ```
 
-## Honest limitations
+## Commands
 
-1. **Simulated data is not a conclusion.** Mock validates the pipeline, nothing more.
-2. **No human labels → no κ.** The report leaves the trustworthiness section blank rather than substituting another metric.
-3. **368 items is a seed set, not a production bank.** Items are handcrafted, not sampled from real user requests — the main gap vs industrial practice, on the roadmap.
-4. **Conclusions require significance.** Inside the noise band the report says "insufficient evidence".
-5. **Code execution is only weakly isolated.** Items with `tests` run in a subprocess (isolated temp dir + 10s hard timeout + static blacklist) — that is not a container sandbox. Items without `tests` fall back to the judge.
+```bash
+python run.py list                                       # suites / rubrics / dimensions / models
+python run.py run --suite all --pairwise                 # full run with pairwise
+python run.py run --suite agent                          # agent only (repeats=3, for pass^k)
+python run.py run --suite all --limit 20                 # 20 items first, don't burn budget
+python run.py report --run latest --open                 # render, costs nothing
+python run.py calibrate --run latest --gold <gold.jsonl> # calibrate judges against human labels
+python run.py failures --run latest --top 5              # quick badcase look in the terminal
+python scripts/audit_isolation.py                        # full-bank answer isolation check
+```
+
+## What it doesn't do yet
+
+Worth reading before the feature list:
+
+1. Mock output is not a result. It proves the pipeline runs.
+2. No human labels means no κ, and that cell stays empty in the report.
+3. 368 handcrafted items is a seed set, not a production bank. Nothing here is sampled from real user requests, which is the biggest gap versus industrial evaluation and the first thing on the roadmap.
+4. Code execution is subprocess-level weak isolation (own temp dir, 10s hard timeout, static blacklist), not a container sandbox. Items without `tests` fall back to the judge.
+5. Isolation is post-hoc audit only; there is no in-flight interception.
+
+Roadmap: container-level coding sandbox, repeats across all dimensions so pass^k covers everything, real user request sampling, English item bank and internationalized reports.
+
+## Docs
+
+| Doc | Contents |
+|---|---|
+| [评测体系](docs/评测体系.md) | Where dimensions come from, rubric design, metric definitions, the SOP |
+| [架构说明](docs/架构说明.md) | Code structure, data flow, how to add a dimension / metric / SUT |
+| [命令手册](docs/命令手册.md) | Every command plus six typical workflows |
+| [字节评测方法对照](docs/字节评测方法对照.md) | Each design mapped to Seed method and paper |
+| [沙盒与隔离](docs/沙盒与隔离.md) | How far isolation goes, why not containers yet |
+| [维度边界定义](docs/维度边界定义.md) | In/out-of-scope per dimension, rules for ambiguous items |
+| [指标与维度对照](docs/指标与维度对照.md) | Public benchmarks, metrics, tier and pass line per dimension |
+| [datasets/schema.md](datasets/schema.md) | Read this before contributing items |
 
 ## Contributing
 
-Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese). New dimensions, metrics, and SUTs all have standard plug-in points; the most wanted contribution is a container-level coding sandbox. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Issues and PRs welcome; integration points are described in [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese). New dimensions, metrics and SUTs all have standard hooks, and the contribution I most want is a container-level coding sandbox. If you add items, read `datasets/schema.md` first; CI runs the isolation check.
 
 ## Citing
 
@@ -177,17 +223,17 @@ Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese).
 }
 ```
 
+## References
+
+- Seed 1.8 / 2.0 / 2.1 Model Cards (ByteDance Seed)
+- G-Eval (Liu et al., 2023, arXiv:2303.16634)
+- MT-Bench / Chatbot Arena (Zheng et al., 2023)
+- τ-bench (Sierra)
+- Length-Controlled AlpacaEval (Dubois et al., 2024)
+- PoLL (Verga et al., 2024)
+- MultiAgentBench (Zhu et al., 2025)
+- Landis & Koch (1977)
+
 ## License
 
 [MIT](LICENSE) © 2026 邱子策 (Zice Qiu)
-
-## Key references
-
-- Seed 1.8 / 2.0 / 2.1 Model Cards (Bytedance Seed) — evaluation principles, four-axis framework, product-driven evaluation
-- G-Eval (Liu et al., 2023, arXiv:2303.16634) — rubric paradigm
-- MT-Bench / Chatbot Arena (Zheng et al., 2023) — LLM-as-a-judge, position bias
-- τ-bench (Sierra) — pass^k reliability
-- Length-Controlled AlpacaEval (Dubois et al., 2024) — verbosity bias
-- PoLL (Verga et al., 2024) — judge panels beat single judges
-- MultiAgentBench (Zhu et al., 2025) — multi-agent evaluation
-- Landis & Koch (1977) — κ interpretation bands
