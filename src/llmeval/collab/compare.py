@@ -89,6 +89,10 @@ def evaluate_context_volume(sample: Sample, response: Response) -> Verdict | Non
     return Verdict(
         sample.id, response.sut_id, "collab_context_volume", "deterministic",
         score=round(chars, 1), passed=True,
+        # 这是以字符计的体量诊断量，不是 1—5 质量分。
+        # 漏了 decisive=False 会被当成质量分平均进综合分：
+        # 一个 867 字符的记录足以把 multi_agent 维度从 4 分抬到 57 分。
+        decisive=False,
         detail={"chars": chars, "messages": len(msgs)},
         attempt_index=response.attempt_index,
     )

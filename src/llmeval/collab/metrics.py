@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
+from typing import Any
 
 from ..schema import Response, Sample, Verdict
 
@@ -54,6 +55,9 @@ def evaluate_convergence(sample: Sample, response: Response) -> Verdict | None:
     return Verdict(
         sample.id, response.sut_id, "collab_convergence", "deterministic",
         score=score, passed=score >= 4,
+        # 收敛质量是诊断量：同族模型自偏好会让它虚高（自己认同自己），
+        # 所以只披露、不参与综合分。见 module docstring 的指标归属表。
+        decisive=False,
         detail={"verdicts": verdicts, "revision_rounds": n_rev_needed, "note": note},
         attempt_index=response.attempt_index,
     )
@@ -71,6 +75,7 @@ def evaluate_invalid_rounds(sample: Sample, response: Response) -> Verdict | Non
         return Verdict(
             sample.id, response.sut_id, "collab_invalid_rounds", "deterministic",
             score=1.0, passed=False,
+            decisive=False,
             detail={"reason": "有否决但无修订轮，协作断链"},
             attempt_index=response.attempt_index,
         )
@@ -91,6 +96,7 @@ def evaluate_invalid_rounds(sample: Sample, response: Response) -> Verdict | Non
     return Verdict(
         sample.id, response.sut_id, "collab_invalid_rounds", "deterministic",
         score=max(1.0, score), passed=score >= 4,
+        decisive=False,
         detail={"revision_rounds": len(execs) - 1, "invalid_rounds": invalid,
                 "invalid_ratio": round(ratio, 4)},
         attempt_index=response.attempt_index,

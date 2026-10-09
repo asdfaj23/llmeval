@@ -36,6 +36,7 @@ from typing import Any, Callable
 from . import config as cfg
 from .client import LLMClient, run_parallel
 from .config import ModelSpec, SuiteConfig, load_rubric, load_suite
+from .containment import collect_containment, summarize_containment
 from .metrics import (
     collect_agent_metrics,
     collect_coding_exec,
@@ -196,6 +197,9 @@ class Runner:
         verdicts.extend(collect_coding_exec(sample, response))
         verdicts.extend(collect_multiturn_metrics(sample, response))
         verdicts.extend(collect_agent_metrics(sample, response))
+        # 隔离审计放在最后：它只看轨迹与材料，不依赖前面任何判定的结果。
+        # 产出 decisive=False，不进质量分，只做披露。
+        verdicts.extend(collect_containment(sample, response))
         verdicts.extend(collect_collaboration(sample, response))
         verdicts.extend(collect_collab_process(sample, response))
         verdicts.extend(collect_compare_metrics(sample, response))
@@ -378,6 +382,7 @@ class Runner:
             suts=[m.id for m in self.suts],
             judges=[m.id for m in self.judges],
             tier_counts=tier_counts,
+            containment=summarize_containment(turns),
             usage=usage,
             errors=errors,
         )

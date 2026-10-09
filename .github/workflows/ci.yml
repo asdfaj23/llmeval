@@ -32,5 +32,8 @@ jobs:
       - name: Offline unit tests
         run: python -m pytest tests -q
 
+      - name: Dataset isolation audit
+        run: python scripts/audit_isolation.py --fail-on-leak
+
       - name: Smoke - config & dataset loading
         run: python run.py list

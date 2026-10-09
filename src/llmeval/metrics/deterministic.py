@@ -120,8 +120,32 @@ def evaluate_constraints(sample: Sample, response: Response) -> Verdict | None:
             if parsed is None:
                 ok, note = False, "输出不是合法 JSON"
             else:
-                absent = [k for k in _as_list((value or {}).get("required")) if k not in parsed]
-                ok, note = not absent, f"JSON 缺少必需字段：{absent}"
+                spec = value if isinstance(value, dict) else {}
+                required = _as_list(spec.get("required"))
+                root = str(spec.get("root") or "").lower()
+                if root == "array" and not isinstance(parsed, list):
+                    ok, note = False, "输出不是 JSON 数组"
+                elif root == "object" and not isinstance(parsed, dict):
+                    ok, note = False, "输出不是 JSON 对象"
+                elif isinstance(parsed, list):
+                    # 数组形态：required 里的字段要在**每个**元素上都存在。
+                    # 只声明 root=array 时才走这条分支，老题目（对象）行为不变。
+                    if not parsed:
+                        ok, note = False, "JSON 数组为空"
+                    else:
+                        absent = sorted(
+                            {
+                                k
+                                for item in parsed
+                                if isinstance(item, dict)
+                                for k in required
+                                if k not in item
+                            }
+                        )
+                        ok, note = not absent, f"JSON 数组元素缺少必需字段：{absent}"
+                else:
+                    absent = [k for k in required if k not in parsed]
+                    ok, note = not absent, f"JSON 缺少必需字段：{absent}"
         elif ctype == "language":
             want_zh = str(value).lower().startswith("zh")
             got_zh = is_chinese_dominant(text)

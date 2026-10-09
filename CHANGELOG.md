@@ -5,11 +5,25 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 评测环境隔离：`src/llmeval/containment.py` 提供答案隔离自检、canary 泄漏扫描、工具轨迹审计，全部确定性、零 API 成本。判定串为 `decisive=False`，只披露不进质量分
+- `scripts/audit_isolation.py`（答案隔离）与 `scripts/audit_reference.py`（参考答案自洽性）接入 CI，前者支持 `--fail-on-leak`
+- `docs/沙盒与隔离.md`、`docs/维度边界定义.md`
+- 自建新增 74 题，题库 294 → 368，hard 占比 31.3% → 44.3%（easy 49 / medium 156 / hard 163）
+- 离线单测 217 → 256 条
+
+### 变更
+
+- 维度边界重构：13 个维度区分「能力轴 / 形态轴」，每个维度补 `sole_judge` 与 `belongs_elsewhere`，并定义四步归属流程；按该规则重归类 3 道边界错位题（office → reasoning / realworld）
+- 修复三个既有缺陷：3 处协作诊断量漏标 `decisive=False`（把 multi_agent 维度从 4 分抬到 57.7）；in-011 的参考答案超出题面自定字数上限，满分不可达；`json_schema` 不支持数组形态
+- README 与 README_EN 重写为作者口吻，去掉标语式排版，数字与题库现状对齐
+
 ### 计划中
 
-- `coding` 维度接入子进程沙箱真实执行（目前靠裁判读代码打分）
+- `coding` 维度升级到容器级沙箱（当前为子进程弱隔离：独立临时目录 + 10 秒超时 + 静态黑名单）
 - 除 agent 之外的其他维度开启 `repeats`，使 pass^k 覆盖全部维度
-- 评测集从 290+ 种子规模继续扩充，逐步引入真实用户请求采样
+- 评测集从 368 题种子规模继续扩充，逐步引入真实用户请求采样
 
 ## [0.1.0] - 2026-10-07
 
